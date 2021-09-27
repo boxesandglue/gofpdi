@@ -49,16 +49,6 @@ func (pw *PdfWriter) SetTplIDOffset(n int) {
 	pw.tplIDOffset = n
 }
 
-func (pw *PdfWriter) init() {
-	pw.k = 1
-	pw.objStack = make(map[int]*reader.PdfValue, 0)
-	pw.doOobjStack = make(map[int]*reader.PdfValue, 0)
-	pw.tpls = make([]*PdfTemplate, 0)
-	pw.writtenObjs = make(map[*PdfObjectID][]byte, 0)
-	pw.writtenObjPos = make(map[*PdfObjectID]map[int]string, 0)
-	pw.currentObj = new(PdfObject)
-}
-
 func (pw *PdfWriter) SetUseHash(b bool) {
 	pw.useHash = b
 }
@@ -67,20 +57,17 @@ func (pw *PdfWriter) SetNextObjectID(id int) {
 	pw.n = id - 1
 }
 
-func NewPdfWriter(filename string) (*PdfWriter, error) {
-	writer := &PdfWriter{}
-	writer.init()
+func NewPdfWriter() *PdfWriter {
+	pw := &PdfWriter{}
+	pw.k = 1
+	pw.objStack = make(map[int]*reader.PdfValue, 0)
+	pw.doOobjStack = make(map[int]*reader.PdfValue, 0)
+	pw.tpls = make([]*PdfTemplate, 0)
+	pw.writtenObjs = make(map[*PdfObjectID][]byte, 0)
+	pw.writtenObjPos = make(map[*PdfObjectID]map[int]string, 0)
+	pw.currentObj = new(PdfObject)
 
-	if filename != "" {
-		var err error
-		f, err := os.Create(filename)
-		if err != nil {
-			return nil, fmt.Errorf("%w: Unable to create filename: %s ", err, filename)
-		}
-		writer.f = f
-		writer.w = bufio.NewWriter(f)
-	}
-	return writer, nil
+	return pw
 }
 
 // Done with parsing.  Now, create templates.
