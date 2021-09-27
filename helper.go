@@ -6,7 +6,7 @@ import (
 
 // Determine if a value is numeric
 // Courtesy of https://github.com/syyongx/php2go/blob/master/php.go
-func is_numeric(val interface{}) bool {
+func isNumeric(val interface{}) bool {
 	switch val.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 	case float32, float64, complex64, complex128:
@@ -57,7 +57,7 @@ func is_numeric(val interface{}) bool {
 	return false
 }
 
-func in_array(needle interface{}, hystack interface{}) bool {
+func inArray(needle interface{}, hystack interface{}) bool {
 	switch key := needle.(type) {
 	case string:
 		for _, item := range hystack.([]string) {
