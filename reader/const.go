@@ -1,4 +1,4 @@
-package gofpdi
+package reader
 
 const (
 	// PDFTypeNull means “no type”

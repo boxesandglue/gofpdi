@@ -1,11 +1,11 @@
-package gofpdi
+package reader
 
 import (
 	"strings"
 )
 
-// Determine if a value is numeric
-// Courtesy of https://github.com/syyongx/php2go/blob/master/php.go
+// IsNumeric determines if a value is numeric. Courtesy of
+// https://github.com/syyongx/php2go/blob/master/php.go
 func isNumeric(val interface{}) bool {
 	switch val.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:

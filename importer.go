@@ -3,12 +3,14 @@ package gofpdi
 import (
 	"fmt"
 	"io"
+
+	"github.com/speedata/gofpdi/reader"
 )
 
 // The Importer class to be used by a pdf generation library
 type Importer struct {
 	sourceFile    string
-	readers       map[string]*PdfReader
+	readers       map[string]*reader.PdfReader
 	writers       map[string]*PdfWriter
 	tplMap        map[int]*TplInfo
 	tplN          int
@@ -23,7 +25,7 @@ type TplInfo struct {
 	TemplateID int
 }
 
-func (imp *Importer) getReader() *PdfReader {
+func (imp *Importer) getReader() *reader.PdfReader {
 	return imp.getReaderForFile(imp.sourceFile)
 }
 
@@ -31,7 +33,7 @@ func (imp *Importer) getWriter() *PdfWriter {
 	return imp.getWriterForFile(imp.sourceFile)
 }
 
-func (imp *Importer) getReaderForFile(file string) *PdfReader {
+func (imp *Importer) getReaderForFile(file string) *reader.PdfReader {
 	if _, ok := imp.readers[file]; ok {
 		return imp.readers[file]
 	}
@@ -55,7 +57,7 @@ func NewImporter() *Importer {
 }
 
 func (imp *Importer) init() {
-	imp.readers = make(map[string]*PdfReader, 0)
+	imp.readers = make(map[string]*reader.PdfReader, 0)
 	imp.writers = make(map[string]*PdfWriter, 0)
 	imp.tplMap = make(map[int]*TplInfo, 0)
 	imp.writer, _ = NewPdfWriter("")
@@ -68,7 +70,7 @@ func (imp *Importer) SetSourceFile(f string) {
 
 	// If reader hasn't been instantiated, do that now
 	if _, ok := imp.readers[imp.sourceFile]; !ok {
-		reader, err := NewPdfReader(imp.sourceFile)
+		reader, err := reader.NewPdfReader(imp.sourceFile)
 		if err != nil {
 			panic(err)
 		}
@@ -93,7 +95,7 @@ func (imp *Importer) SetSourceStream(rs *io.ReadSeeker) {
 	imp.sourceFile = fmt.Sprintf("%v", rs)
 
 	if _, ok := imp.readers[imp.sourceFile]; !ok {
-		reader, err := NewPdfReaderFromStream(*rs)
+		reader, err := reader.NewPdfReaderFromStream(*rs)
 		if err != nil {
 			panic(err)
 		}
@@ -115,7 +117,7 @@ func (imp *Importer) SetSourceStream(rs *io.ReadSeeker) {
 
 // GetNumPages returns the number of pages in the PDF document
 func (imp *Importer) GetNumPages() int {
-	result, err := imp.getReader().getNumPages()
+	result, err := imp.getReader().GetNumPages()
 
 	if err != nil {
 		panic(err)
@@ -126,7 +128,7 @@ func (imp *Importer) GetNumPages() int {
 
 // GetPageSizes returns the page sizes for all pages
 func (imp *Importer) GetPageSizes() map[int]map[string]map[string]float64 {
-	result, err := imp.getReader().getAllPageBoxes(1.0)
+	result, err := imp.getReader().GetAllPageBoxes(1.0)
 
 	if err != nil {
 		panic(err)

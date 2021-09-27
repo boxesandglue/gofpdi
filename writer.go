@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"math"
 	"os"
+
+	"github.com/speedata/gofpdi/reader"
 )
 
 type PdfWriter struct {
 	f       *os.File
 	w       *bufio.Writer
-	r       *PdfReader
+	r       *reader.PdfReader
 	k       float64
 	tpls    []*PdfTemplate
 	m       int
@@ -23,8 +25,8 @@ type PdfWriter struct {
 	offset  int
 	result  map[int]string
 	// Keep track of which objects have already been written
-	objStack      map[int]*PdfValue
-	doOobjStack   map[int]*PdfValue
+	objStack      map[int]*reader.PdfValue
+	doOobjStack   map[int]*reader.PdfValue
 	writtenObjs   map[*PdfObjectID][]byte
 	writtenObjPos map[*PdfObjectID]map[int]string
 	currentObj    *PdfObject
@@ -49,8 +51,8 @@ func (pw *PdfWriter) SetTplIDOffset(n int) {
 
 func (pw *PdfWriter) init() {
 	pw.k = 1
-	pw.objStack = make(map[int]*PdfValue, 0)
-	pw.doOobjStack = make(map[int]*PdfValue, 0)
+	pw.objStack = make(map[int]*reader.PdfValue, 0)
+	pw.doOobjStack = make(map[int]*reader.PdfValue, 0)
 	pw.tpls = make([]*PdfTemplate, 0)
 	pw.writtenObjs = make(map[*PdfObjectID][]byte, 0)
 	pw.writtenObjPos = make(map[*PdfObjectID]map[int]string, 0)
@@ -84,8 +86,8 @@ func NewPdfWriter(filename string) (*PdfWriter, error) {
 // Done with parsing.  Now, create templates.
 type PdfTemplate struct {
 	ID        int
-	Reader    *PdfReader
-	Resources *PdfValue
+	Reader    *reader.PdfReader
+	Resources *reader.PdfValue
 	Buffer    string
 	Box       map[string]float64
 	Boxes     map[string]map[string]float64
@@ -115,14 +117,14 @@ func (pw *PdfWriter) ClearImportedObjects() {
 }
 
 // ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. MediaBox)
-func (pw *PdfWriter) ImportPage(reader *PdfReader, pageno int, boxName string) (int, error) {
+func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
 	var err error
 
 	// Set default scale to 1
 	pw.k = 1
 
 	// Get all page boxes
-	pageBoxes, err := reader.getPageBoxes(1, pw.k)
+	pageBoxes, err := rd.GetPageBoxes(1, pw.k)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get page boxes", err)
 	}
@@ -142,19 +144,19 @@ func (pw *PdfWriter) ImportPage(reader *PdfReader, pageno int, boxName string) (
 		return -1, fmt.Errorf("Box not found: " + boxName)
 	}
 
-	pageResources, err := reader.getPageResources(pageno)
+	pageResources, err := rd.GetPageResources(pageno)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get page resources", err)
 	}
 
-	content, err := reader.getContent(pageno)
+	content, err := rd.GetContent(pageno)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get content", err)
 	}
 
 	// Set template values
 	tpl := &PdfTemplate{}
-	tpl.Reader = reader
+	tpl.Reader = rd
 	tpl.Resources = pageResources
 	tpl.Buffer = content
 	tpl.Box = pageBoxes[boxName]
@@ -165,7 +167,7 @@ func (pw *PdfWriter) ImportPage(reader *PdfReader, pageno int, boxName string) (
 	tpl.H = tpl.Box["h"]
 
 	// Set template rotation
-	rotation, err := reader.getPageRotation(pageno)
+	rotation, err := rd.GetPageRotation(pageno)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get page rotation", err)
 	}
@@ -229,7 +231,7 @@ func (pw *PdfWriter) endObj() {
 
 func (pw *PdfWriter) shaOfInt(i int) string {
 	hasher := sha1.New()
-	hasher.Write([]byte(fmt.Sprintf("%d-%s", i, pw.r.sourceFile)))
+	hasher.Write([]byte(fmt.Sprintf("%d-%s", i, pw.r.SourceFile)))
 	sha := hex.EncodeToString(hasher.Sum(nil))
 	return sha
 }
@@ -260,21 +262,21 @@ func (pw *PdfWriter) straightOut(s string) {
 }
 
 // Output a PdfValue
-func (pw *PdfWriter) writeValue(value *PdfValue) {
+func (pw *PdfWriter) writeValue(value *reader.PdfValue) {
 	switch value.Type {
-	case PDFTypeToken:
+	case reader.PDFTypeToken:
 		pw.straightOut(value.Token + " ")
 		break
 
-	case PDFTypeNumeric:
+	case reader.PDFTypeNumeric:
 		pw.straightOut(fmt.Sprintf("%d", value.Int) + " ")
 		break
 
-	case PDFTypeReal:
+	case reader.PDFTypeReal:
 		pw.straightOut(fmt.Sprintf("%F", value.Real) + " ")
 		break
 
-	case PDFTypeArray:
+	case reader.PDFTypeArray:
 		pw.straightOut("[")
 		for i := 0; i < len(value.Array); i++ {
 			pw.writeValue(value.Array[i])
@@ -282,7 +284,7 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 		pw.out("]")
 		break
 
-	case PDFTypeDictionary:
+	case reader.PDFTypeDictionary:
 		pw.straightOut("<<")
 		for k, v := range value.Dictionary {
 			pw.straightOut(k + " ")
@@ -291,13 +293,13 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 		pw.straightOut(">>")
 		break
 
-	case PDFTypeObjRef:
+	case reader.PDFTypeObjRef:
 		// An indirect object reference.  Fill the object stack if needed.
 		// Check to see if object already exists on the don_obj_stack.
 		if _, ok := pw.doOobjStack[value.ID]; !ok {
 			pw.newObj(-1, true)
-			pw.objStack[value.ID] = &PdfValue{Type: PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
-			pw.doOobjStack[value.ID] = &PdfValue{Type: PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
+			pw.objStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
+			pw.doOobjStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
 		}
 
 		// Get object ID from don_obj_stack
@@ -306,12 +308,12 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 		//this.out(fmt.Sprintf("%d 0 R", objId))
 		break
 
-	case PDFTypeString:
+	case reader.PDFTypeString:
 		// A string
 		pw.straightOut("(" + value.String + ")")
 		break
 
-	case PDFTypeStream:
+	case reader.PDFTypeStream:
 		// A stream.  First, output the stream dictionary, then the stream data itself.
 		pw.writeValue(value.Value)
 		pw.out("stream")
@@ -319,11 +321,11 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 		pw.out("endstream")
 		break
 
-	case PDFTypeHex:
+	case reader.PDFTypeHex:
 		pw.straightOut("<" + value.String + ">")
 		break
 
-	case PDFTypeBoolean:
+	case reader.PDFTypeBoolean:
 		if value.Bool {
 			pw.straightOut("true")
 		} else {
@@ -331,7 +333,7 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 		}
 		break
 
-	case PDFTypeNull:
+	case reader.PDFTypeNull:
 		// The null object
 		pw.straightOut("null ")
 		break
@@ -340,7 +342,7 @@ func (pw *PdfWriter) writeValue(value *PdfValue) {
 
 // PutFormXobjects puts form xobjects and get back a map of template names (e.g.
 // /GOFPDITPL1) and their object ids (int)
-func (pw *PdfWriter) PutFormXobjects(reader *PdfReader) (map[string]*PdfObjectID, error) {
+func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfObjectID, error) {
 	// Set current reader
 	pw.r = reader
 
@@ -463,9 +465,9 @@ func (pw *PdfWriter) PutFormXobjects(reader *PdfReader) (map[string]*PdfObjectID
 	return result, nil
 }
 
-func (pw *PdfWriter) putImportedObjects(reader *PdfReader) error {
+func (pw *PdfWriter) putImportedObjects(rd *reader.PdfReader) error {
 	var err error
-	var nObj *PdfValue
+	var nObj *reader.PdfValue
 
 	// obj_stack will have new items added to it in the inner loop, so do another loop to check for extras
 	// TODO make the order of this the same every time
@@ -483,7 +485,7 @@ func (pw *PdfWriter) putImportedObjects(reader *PdfReader) error {
 
 			atLeastOne = true
 
-			nObj, err = reader.resolveObject(v)
+			nObj, err = rd.ResolveObject(v)
 			if err != nil {
 				return fmt.Errorf("%w: Unable to resolve object", err)
 			}
@@ -491,7 +493,7 @@ func (pw *PdfWriter) putImportedObjects(reader *PdfReader) error {
 			// New object with "NewId" field
 			pw.newObj(v.NewID, false)
 
-			if nObj.Type == PDFTypeStream {
+			if nObj.Type == reader.PDFTypeStream {
 				pw.writeValue(nObj)
 			} else {
 				pw.writeValue(nObj.Value)
