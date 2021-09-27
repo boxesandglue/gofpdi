@@ -114,12 +114,12 @@ func (imp *Importer) PutFormXobjectsUnordered() (map[string]string, error) {
 	return res, nil
 }
 
-// GetImportedObjects gets object ids (int) and their contents (string)
-func (imp *Importer) GetImportedObjects() map[int]string {
-	res := make(map[int]string, 0)
+// GetImportedObjects gets object ids (int) and their contents ([]byte)
+func (imp *Importer) GetImportedObjects() map[int][]byte {
+	res := make(map[int][]byte, 0)
 	pdfObjIDBytes := imp.writer.GetImportedObjects()
 	for pdfObjID, bytes := range pdfObjIDBytes {
-		res[pdfObjID.id] = string(bytes)
+		res[pdfObjID.id] = bytes
 	}
 	return res
 }

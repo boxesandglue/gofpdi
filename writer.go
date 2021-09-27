@@ -210,8 +210,6 @@ func (pw *PdfWriter) newObj(objID int, onlyNewObj bool) {
 }
 
 func (pw *PdfWriter) endObj() {
-	pw.out("endobj")
-
 	pw.writtenObjs[pw.currentObj.id] = pw.currentObj.buffer.Bytes()
 	pw.currentObjID = -1
 }
