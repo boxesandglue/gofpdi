@@ -33,6 +33,7 @@ type PdfWriter struct {
 	currentObjID  int
 	tplIDOffset   int
 	useHash       bool
+	NextObjectID  func() int
 }
 
 type PdfObjectID struct {
@@ -103,7 +104,7 @@ func (pw *PdfWriter) ClearImportedObjects() {
 	pw.writtenObjs = make(map[*PdfObjectID][]byte, 0)
 }
 
-// ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. MediaBox)
+// ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. /MediaBox)
 func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
 	var err error
 
@@ -128,7 +129,7 @@ func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string
 	// If the requested box name or an alternate box name cannot be found, trigger an error
 	// TODO: Improve error handling
 	if _, ok := pageBoxes[boxName]; !ok {
-		return -1, fmt.Errorf("Box not found: " + boxName)
+		return -1, fmt.Errorf("Box not found: %s", boxName)
 	}
 
 	pageResources, err := rd.GetPageResources(pageno)
@@ -190,7 +191,11 @@ func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string
 // Create a new object and keep track of the offset for the xref table
 func (pw *PdfWriter) newObj(objID int, onlyNewObj bool) {
 	if objID < 0 {
-		pw.n++
+		if pw.NextObjectID != nil {
+			pw.n = pw.NextObjectID()
+		} else {
+			pw.n++
+		}
 		objID = pw.n
 	}
 

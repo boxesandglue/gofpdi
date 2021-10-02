@@ -1282,7 +1282,7 @@ func (pr *PdfReader) GetPageResources(pageno int) (*PdfValue, error) {
 			return nil, fmt.Errorf("%w:Failed to resolve parent object", err)
 		}
 
-		// If /Parent object type is PDF_TYPE_OBJECT, return its Value
+		// If /Parent object type is PDFTypeObject, return its Value
 		if res.Type == PDFTypeObject {
 			return res.Value, nil
 		}

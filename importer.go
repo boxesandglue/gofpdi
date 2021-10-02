@@ -32,10 +32,14 @@ func NewImporter() *Importer {
 	return importer
 }
 
+func (imp *Importer) SetObjIdGetter(f func() int) {
+	imp.writer.NextObjectID = f
+}
+
 // SetSourceStream sets the importer source by providing a io.ReadSeeker
-func (imp *Importer) SetSourceStream(rs *io.ReadSeeker) error {
+func (imp *Importer) SetSourceStream(rs io.ReadSeeker) error {
 	var err error
-	if imp.reader, err = reader.NewPdfReaderFromStream(*rs); err != nil {
+	if imp.reader, err = reader.NewPdfReaderFromStream(rs); err != nil {
 		return err
 	}
 
