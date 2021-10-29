@@ -17,7 +17,6 @@ type PdfWriter struct {
 	f       *os.File
 	w       *bufio.Writer
 	r       *reader.PdfReader
-	k       float64
 	tpls    []*PdfTemplate
 	m       int
 	n       int
@@ -60,7 +59,6 @@ func (pw *PdfWriter) SetNextObjectID(id int) {
 
 func NewPdfWriter() *PdfWriter {
 	pw := &PdfWriter{}
-	pw.k = 1
 	pw.objStack = make(map[int]*reader.PdfValue, 0)
 	pw.doOobjStack = make(map[int]*reader.PdfValue, 0)
 	pw.tpls = make([]*PdfTemplate, 0)
@@ -108,11 +106,8 @@ func (pw *PdfWriter) ClearImportedObjects() {
 func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
 	var err error
 
-	// Set default scale to 1
-	pw.k = 1
-
 	// Get all page boxes
-	pageBoxes, err := rd.GetPageBoxes(1, pw.k)
+	pageBoxes, err := rd.GetPageBoxes(1)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get page boxes", err)
 	}
@@ -379,7 +374,7 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 		pw.out("/Subtype /Form")
 		pw.out("/FormType 1")
 
-		pw.out(fmt.Sprintf("/BBox [%.2F %.2F %.2F %.2F]", tpl.Box["llx"]*pw.k, tpl.Box["lly"]*pw.k, (tpl.Box["urx"]+tpl.X)*pw.k, (tpl.Box["ury"]-tpl.Y)*pw.k))
+		pw.out(fmt.Sprintf("/BBox [%.2F %.2F %.2F %.2F]", tpl.Box["llx"], tpl.Box["lly"], (tpl.Box["urx"] + tpl.X), (tpl.Box["ury"] - tpl.Y)))
 
 		var c, s, tx, ty float64
 		c = 1
@@ -414,9 +409,6 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 			tx = -tpl.Box["x"] * 2
 			ty = tpl.Box["y"] * 2
 		}
-
-		tx *= pw.k
-		ty *= pw.k
 
 		if c != 1 || s != 0 || tx != 0 || ty != 0 {
 			pw.out(fmt.Sprintf("/Matrix [%.5F %.5F %.5F %.5F %.5F %.5F]", c, s, -s, c, tx, ty))
@@ -501,62 +493,4 @@ func (pw *PdfWriter) putImportedObjects(rd *reader.PdfReader) error {
 	}
 
 	return nil
-}
-
-// Get the calculated size of a template
-// If one size is given, this method calculates the other one
-func (pw *PdfWriter) getTemplateSize(tplid int, _w float64, _h float64) map[string]float64 {
-	result := make(map[string]float64, 2)
-
-	tpl := pw.tpls[tplid]
-
-	w := tpl.W
-	h := tpl.H
-
-	if _w == 0 && _h == 0 {
-		_w = w
-		_h = h
-	}
-
-	if _w == 0 {
-		_w = _h * w / h
-	}
-
-	if _h == 0 {
-		_h = _w * h / w
-	}
-
-	result["w"] = _w
-	result["h"] = _h
-
-	return result
-}
-
-// UseTemplate ...
-func (pw *PdfWriter) UseTemplate(tplid int, _x float64, _y float64, _w float64, _h float64) (string, float64, float64, float64, float64) {
-	tpl := pw.tpls[tplid]
-
-	w := tpl.W
-	h := tpl.H
-
-	_x += tpl.X
-	_y += tpl.Y
-
-	wh := pw.getTemplateSize(0, _w, _h)
-
-	_w = wh["w"]
-	_h = wh["h"]
-
-	tData := make(map[string]float64, 9)
-	tData["x"] = 0.0
-	tData["y"] = 0.0
-	tData["w"] = _w
-	tData["h"] = _h
-	tData["scaleX"] = (_w / w)
-	tData["scaleY"] = (_h / h)
-	tData["tx"] = _x
-	tData["ty"] = (0 - _y - _h)
-	tData["lty"] = (0 - _y - _h) - (0-h)*(_h/h)
-
-	return fmt.Sprintf("/GOFPDITPL%d", tplid+pw.tplIDOffset), tData["scaleX"], tData["scaleY"], tData["tx"] * pw.k, tData["ty"] * pw.k
 }

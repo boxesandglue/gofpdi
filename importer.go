@@ -17,7 +17,6 @@ type Importer struct {
 
 // TplInfo has information about a template
 type TplInfo struct {
-	SourceFile string
 	Writer     *PdfWriter
 	TemplateID int
 }
@@ -73,7 +72,7 @@ func (imp *Importer) ImportPage(pageno int, box string) (int, error) {
 	tplN := imp.tplN
 
 	// Set tpl info
-	imp.tplMap[tplN] = &TplInfo{SourceFile: "", TemplateID: res, Writer: imp.writer}
+	imp.tplMap[tplN] = &TplInfo{TemplateID: res, Writer: imp.writer}
 
 	// Increment template id
 	imp.tplN++
@@ -103,21 +102,6 @@ func (imp *Importer) PutFormXobjects() (map[string]int, error) {
 	return res, nil
 }
 
-// PutFormXobjectsUnordered puts form xobjects and get back a map of template
-// names (e.g. /GOFPDITPL1) and their object ids (sha1 hash)
-func (imp *Importer) PutFormXobjectsUnordered() (map[string]string, error) {
-	imp.writer.SetUseHash(true)
-	res := make(map[string]string, 0)
-	tplNamesIds, err := imp.writer.PutFormXobjects(imp.reader)
-	if err != nil {
-		return nil, err
-	}
-	for tplName, pdfObjID := range tplNamesIds {
-		res[tplName] = pdfObjID.hash
-	}
-	return res, nil
-}
-
 // GetImportedObjects gets object ids (int) and their contents ([]byte)
 func (imp *Importer) GetImportedObjects() map[int][]byte {
 	res := make(map[int][]byte, 0)
@@ -126,38 +110,4 @@ func (imp *Importer) GetImportedObjects() map[int][]byte {
 		res[pdfObjID.id] = bytes
 	}
 	return res
-}
-
-// GetImportedObjectsUnordered gets object ids (sha1 hash) and their contents
-// ([]byte) The contents may have references to other object hashes which will
-// need to be replaced by the pdf generator library The positions of the hashes
-// (sha1 - 40 characters) can be obtained by calling GetImportedObjHashPos()
-func (imp *Importer) GetImportedObjectsUnordered() map[string][]byte {
-	res := make(map[string][]byte, 0)
-	pdfObjIDBytes := imp.writer.GetImportedObjects()
-	for pdfObjID, bytes := range pdfObjIDBytes {
-		res[pdfObjID.hash] = bytes
-	}
-	return res
-}
-
-// GetImportedObjHashPos gets the positions of the hashes (sha1 - 40 characters)
-// within each object, to be replaced with actual objects ids by the pdf
-// generator library
-func (imp *Importer) GetImportedObjHashPos() map[string]map[int]string {
-	res := make(map[string]map[int]string, 0)
-	pdfObjIDPosHash := imp.writer.GetImportedObjHashPos()
-	for pdfObjID, posHashMap := range pdfObjIDPosHash {
-		res[pdfObjID.hash] = posHashMap
-	}
-	return res
-}
-
-// UseTemplate gets the template name (e.g. /GOFPDITPL1) and the 4 float64
-// values necessary to draw the template a x,y for a given width and height For
-// a given template id (returned from ImportPage),
-func (imp *Importer) UseTemplate(tplid int, _x float64, _y float64, _w float64, _h float64) (string, float64, float64, float64, float64) {
-	// Look up template id in importer tpl map
-	tplInfo := imp.tplMap[tplid]
-	return tplInfo.Writer.UseTemplate(tplInfo.TemplateID, _x, _y, _w, _h)
 }

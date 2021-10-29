@@ -1440,7 +1440,7 @@ func (pr *PdfReader) GetAllPageBoxes(k float64) (map[int]map[string]map[string]f
 	result := make(map[int]map[string]map[string]float64, len(pr.pages))
 
 	for i := 1; i <= len(pr.pages); i++ {
-		result[i], err = pr.GetPageBoxes(i, k)
+		result[i], err = pr.GetPageBoxes(i)
 		if result[i] == nil {
 			return nil, fmt.Errorf("%w:Unable to get page box", err)
 		}
@@ -1450,7 +1450,7 @@ func (pr *PdfReader) GetAllPageBoxes(k float64) (map[int]map[string]map[string]f
 }
 
 // GetPageBoxes gets all page box data
-func (pr *PdfReader) GetPageBoxes(pageno int, k float64) (map[string]map[string]float64, error) {
+func (pr *PdfReader) GetPageBoxes(pageno int) (map[string]map[string]float64, error) {
 	var err error
 
 	// Allocate result with the number of available boxes
@@ -1469,7 +1469,7 @@ func (pr *PdfReader) GetPageBoxes(pageno int, k float64) (map[string]map[string]
 
 	// Loop through available boxes and add to result
 	for i := 0; i < len(pr.availableBoxes); i++ {
-		box, err := pr.getPageBox(page, pr.availableBoxes[i], k)
+		box, err := pr.getPageBox(page, pr.availableBoxes[i])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get page box")
 		}
@@ -1480,7 +1480,7 @@ func (pr *PdfReader) GetPageBoxes(pageno int, k float64) (map[string]map[string]
 }
 
 // Get a specific page box value (e.g. MediaBox) and return its values
-func (pr *PdfReader) getPageBox(page *PdfValue, boxIndex string, k float64) (map[string]float64, error) {
+func (pr *PdfReader) getPageBox(page *PdfValue, boxIndex string) (map[string]float64, error) {
 	var err error
 	var tmpBox *PdfValue
 
@@ -1501,11 +1501,11 @@ func (pr *PdfReader) getPageBox(page *PdfValue, boxIndex string, k float64) (map
 		}
 
 		if box.Type == PDFTypeArray {
-			// If the box type is an array, calculate scaled value based on k
-			result["x"] = box.Array[0].Real / k
-			result["y"] = box.Array[1].Real / k
-			result["w"] = math.Abs(box.Array[0].Real-box.Array[2].Real) / k
-			result["h"] = math.Abs(box.Array[1].Real-box.Array[3].Real) / k
+			// If the box type is an array
+			result["x"] = box.Array[0].Real
+			result["y"] = box.Array[1].Real
+			result["w"] = math.Abs(box.Array[0].Real - box.Array[2].Real)
+			result["h"] = math.Abs(box.Array[1].Real - box.Array[3].Real)
 			result["llx"] = math.Min(box.Array[0].Real, box.Array[2].Real)
 			result["lly"] = math.Min(box.Array[1].Real, box.Array[3].Real)
 			result["urx"] = math.Max(box.Array[0].Real, box.Array[2].Real)
@@ -1521,7 +1521,7 @@ func (pr *PdfReader) getPageBox(page *PdfValue, boxIndex string, k float64) (map
 		}
 
 		// If the page box is inherited from /Parent, recursively return page box of parent
-		return pr.getPageBox(parentObj, boxIndex, k)
+		return pr.getPageBox(parentObj, boxIndex)
 	}
 
 	return result, nil
