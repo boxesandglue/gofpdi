@@ -49,3 +49,24 @@ func TestSample(t *testing.T) {
 		t.Errorf("pr.GetAllPageBoxes() = %d, want %d", got, expected)
 	}
 }
+
+func TestPrevXRef(t *testing.T) {
+	r, err := os.Open("testdata/oceancrop.pdf")
+	if err != nil {
+		t.Error(err)
+	}
+	pr, err := NewPdfReaderFromStream(r)
+	if err != nil {
+		t.Error(err)
+	}
+
+	pb, err := pr.GetAllPageBoxes(1)
+	if err != nil {
+		t.Error(err)
+	}
+	x := pb[1]["/CropBox"]["x"]
+
+	if expected, got := 425.147, x; expected != got {
+		t.Errorf("pr.GetAllPageBoxes(1)[1][CropBox] = %f, want %f", got, expected)
+	}
+}

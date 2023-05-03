@@ -595,13 +595,12 @@ func (pr *PdfReader) ResolveObject(objSpec *PdfValue) (*PdfValue, error) {
 	var err error
 	var oldPos int64
 
-	// Create new bufio.Reader
-	r := bufio.NewReader(pr.f)
-
 	if objSpec.Type != PDFTypeObjRef {
 		return objSpec, nil
 	}
 
+	// Create new bufio.Reader
+	r := bufio.NewReader(pr.f)
 	// This is a reference, resolve it.
 	offset := pr.xref[objSpec.ID][objSpec.Gen]
 
@@ -835,7 +834,8 @@ func (pr *PdfReader) readXref() error {
 			// If /Type is set, check to see if it is XRef
 			if _, ok := v.Dictionary["/Type"]; ok {
 				if v.Dictionary["/Type"].Token == "/XRef" {
-					// Continue reading xref stream data now that it is confirmed that it is an xref stream
+					// Continue reading xref stream data now that it is
+					// confirmed that it is an xref stream
 
 					// Check for /DecodeParms
 					paethDecode := false
@@ -889,7 +889,8 @@ func (pr *PdfReader) readXref() error {
 
 					// Set root object
 					if _, ok := v.Dictionary["/Root"]; ok {
-						// Just set the whole dictionary with /Root key to keep compatibiltiy with existing code
+						// Just set the whole dictionary with /Root key to keep
+						// compatibility with existing code
 						pr.trailer = v
 					}
 					// Don't return an error here.  The trailer could be in another XRef stream.
@@ -1047,7 +1048,7 @@ func (pr *PdfReader) readXref() error {
 						// Set xrefPos to /Prev xref
 						pr.xrefPos = prevXref
 
-						// Read preivous xref
+						// Read previous xref
 						xrefErr := pr.readXref()
 						if xrefErr != nil {
 							return fmt.Errorf("%w: Failed to read prev xref", xrefErr)
@@ -1063,7 +1064,8 @@ func (pr *PdfReader) readXref() error {
 	}
 
 	for {
-		// Next value will be the starting object id (usually 0, but not always) or the trailer
+		// Next value will be the starting object id (usually 0, but not always)
+		// or the trailer
 		t, err = pr.readToken(r)
 		if err != nil {
 			return fmt.Errorf("%w:Failed to read token", err)
@@ -1092,7 +1094,8 @@ func (pr *PdfReader) readXref() error {
 			return fmt.Errorf("%w:Failed to convert num object to integer: "+t, err)
 		}
 
-		// For all objects in xref, read object position, object generation, and status (free or new)
+		// For all objects in xref, read object position, object generation, and
+		// status (free or new)
 		for i := startObject; i < startObject+numObject; i++ {
 			t, err = pr.readToken(r)
 			if err != nil {
@@ -1124,12 +1127,11 @@ func (pr *PdfReader) readXref() error {
 			if objStatus != "f" && objStatus != "n" {
 				return fmt.Errorf("Expected objStatus to be 'n' or 'f', got: " + objStatus)
 			}
-
-			// Append map[int]int
-			pr.xref[i] = make(map[int]int, 1)
-
-			// Set object id, generation, and position
-			pr.xref[i][objGen] = objPos
+			// previous xref entries must not override the later xref entries.
+			if pr.xref[i] == nil {
+				// Append map[int]Int
+				pr.xref[i] = map[int]int{objGen: objPos}
+			}
 		}
 	}
 
