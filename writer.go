@@ -14,24 +14,19 @@ import (
 )
 
 type PdfWriter struct {
-	f       *os.File
-	w       *bufio.Writer
-	r       *reader.PdfReader
-	tpls    []*PdfTemplate
-	m       int
-	n       int
-	offsets map[int]int
-	offset  int
-	result  map[int]string
+	f         *os.File
+	w         *bufio.Writer
+	r         *reader.PdfReader
+	tpls      []*PdfTemplate
+	nextOjbID int
+	result    map[int]string
 	// Keep track of which objects have already been written
 	objStack      map[int]*reader.PdfValue
 	doOobjStack   map[int]*reader.PdfValue
 	writtenObjs   map[*PdfObjectID][]byte
 	writtenObjPos map[*PdfObjectID]map[int]string
 	currentObj    *PdfObject
-	currentObjID  int
 	tplIDOffset   int
-	useHash       bool
 	NextObjectID  func() int
 }
 
@@ -49,12 +44,8 @@ func (pw *PdfWriter) SetTplIDOffset(n int) {
 	pw.tplIDOffset = n
 }
 
-func (pw *PdfWriter) SetUseHash(b bool) {
-	pw.useHash = b
-}
-
 func (pw *PdfWriter) SetNextObjectID(id int) {
-	pw.n = id - 1
+	pw.nextOjbID = id - 1
 }
 
 func NewPdfWriter() *PdfWriter {
@@ -88,13 +79,6 @@ type PdfTemplate struct {
 // GetImportedObjects returns all byte slices for the imported objects
 func (pw *PdfWriter) GetImportedObjects() map[*PdfObjectID][]byte {
 	return pw.writtenObjs
-}
-
-// GetImportedObjHashPos returns the position of each hash within the object,
-// for each object (uniquely identified by a sha1 hash), to be replaced with
-// pdf object ids (integers)
-func (pw *PdfWriter) GetImportedObjHashPos() map[*PdfObjectID]map[int]string {
-	return pw.writtenObjPos
 }
 
 // ClearImportedObjects deletes all imported objects
@@ -183,35 +167,33 @@ func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string
 	return len(pw.tpls) - 1, nil
 }
 
-// Create a new object and keep track of the offset for the xref table
+// Create a new object and keep track of the offset for the xref table. When
+// onlyNewObj is true, the object is not initialized.
 func (pw *PdfWriter) newObj(objID int, onlyNewObj bool) {
 	if objID < 0 {
 		if pw.NextObjectID != nil {
-			pw.n = pw.NextObjectID()
+			pw.nextOjbID = pw.NextObjectID()
 		} else {
-			pw.n++
+			pw.nextOjbID++
 		}
-		objID = pw.n
+		objID = pw.nextOjbID
+	}
+	if onlyNewObj {
+		return
 	}
 
-	if !onlyNewObj {
-		// set current object id integer
-		pw.currentObjID = objID
+	// Create new PdfObject and PdfObjectId
+	pw.currentObj = new(PdfObject)
+	pw.currentObj.buffer = new(bytes.Buffer)
+	pw.currentObj.id = new(PdfObjectID)
+	pw.currentObj.id.id = objID
+	pw.currentObj.id.hash = pw.shaOfInt(objID)
 
-		// Create new PdfObject and PdfObjectId
-		pw.currentObj = new(PdfObject)
-		pw.currentObj.buffer = new(bytes.Buffer)
-		pw.currentObj.id = new(PdfObjectID)
-		pw.currentObj.id.id = objID
-		pw.currentObj.id.hash = pw.shaOfInt(objID)
-
-		pw.writtenObjPos[pw.currentObj.id] = make(map[int]string, 0)
-	}
+	pw.writtenObjPos[pw.currentObj.id] = make(map[int]string, 0)
 }
 
 func (pw *PdfWriter) endObj() {
 	pw.writtenObjs[pw.currentObj.id] = pw.currentObj.buffer.Bytes()
-	pw.currentObjID = -1
 }
 
 func (pw *PdfWriter) shaOfInt(i int) string {
@@ -226,12 +208,7 @@ func (pw *PdfWriter) outObjRef(objID int) {
 
 	// Keep track of object hash and position - to be replaced with actual object id (integer)
 	pw.writtenObjPos[pw.currentObj.id][pw.currentObj.buffer.Len()] = sha
-
-	if pw.useHash {
-		pw.currentObj.buffer.WriteString(sha)
-	} else {
-		pw.currentObj.buffer.WriteString(fmt.Sprintf("%d", objID))
-	}
+	pw.currentObj.buffer.WriteString(fmt.Sprintf("%d", objID))
 	pw.currentObj.buffer.WriteString(" 0 R ")
 }
 
@@ -283,14 +260,13 @@ func (pw *PdfWriter) writeValue(value *reader.PdfValue) {
 		// Check to see if object already exists on the don_obj_stack.
 		if _, ok := pw.doOobjStack[value.ID]; !ok {
 			pw.newObj(-1, true)
-			pw.objStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
-			pw.doOobjStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.n}
+			pw.objStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.nextOjbID}
+			pw.doOobjStack[value.ID] = &reader.PdfValue{Type: reader.PDFTypeObjRef, Gen: value.Gen, ID: value.ID, NewID: pw.nextOjbID}
 		}
 
 		// Get object ID from don_obj_stack
 		objID := pw.doOobjStack[value.ID].NewID
 		pw.outObjRef(objID)
-		//this.out(fmt.Sprintf("%d 0 R", objId))
 		break
 
 	case reader.PDFTypeString:
@@ -360,9 +336,9 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 		// Create new PDF object
 		pw.newObj(-1, false)
 
-		cN := pw.n // remember current "n"
+		cN := pw.nextOjbID // remember current "n"
 
-		tpl.N = pw.n
+		tpl.N = pw.nextOjbID
 
 		// Return xobject form name and object position
 		pdfObjID := new(PdfObjectID)
@@ -423,8 +399,8 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 			return nil, fmt.Errorf("Template resources are empty")
 		}
 
-		nN := pw.n // remember new "n"
-		pw.n = cN  // reset to current "n"
+		nN := pw.nextOjbID // remember new "n"
+		pw.nextOjbID = cN  // reset to current "n"
 
 		pw.out("/Length " + fmt.Sprintf("%d", len(p)) + " >>")
 
@@ -434,7 +410,7 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 
 		pw.endObj()
 
-		pw.n = nN // reset to new "n"
+		pw.nextOjbID = nN // reset to new "n"
 
 		// Put imported objects, starting with the ones from the XObject's Resources,
 		// then from dependencies of those resources).
@@ -451,8 +427,9 @@ func (pw *PdfWriter) putImportedObjects(rd *reader.PdfReader) error {
 	var err error
 	var nObj *reader.PdfValue
 
-	// obj_stack will have new items added to it in the inner loop, so do another loop to check for extras
-	// TODO make the order of this the same every time
+	// obj_stack will have new items added to it in the inner loop, so do
+	// another loop to check for extras TODO make the order of this the same
+	// every time
 	for {
 		atLeastOne := false
 

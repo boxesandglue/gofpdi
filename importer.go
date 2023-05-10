@@ -31,7 +31,9 @@ func NewImporter() *Importer {
 	return importer
 }
 
-func (imp *Importer) SetObjIdGetter(f func() int) {
+// SetObjIDGetter sets a function that is called each time the PDF writer should
+// generate a new object number
+func (imp *Importer) SetObjIDGetter(f func() int) {
 	imp.writer.NextObjectID = f
 }
 
