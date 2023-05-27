@@ -67,7 +67,6 @@ type PdfTemplate struct {
 	Resources *reader.PdfValue
 	Buffer    string
 	Box       map[string]float64
-	Boxes     map[string]map[string]float64
 	X         float64
 	Y         float64
 	W         float64
@@ -86,31 +85,68 @@ func (pw *PdfWriter) ClearImportedObjects() {
 	pw.writtenObjs = make(map[*PdfObjectID][]byte, 0)
 }
 
-// ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. /MediaBox)
-func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
-	var err error
-
-	// Get all page boxes
-	pageBoxes, err := rd.GetPageBoxes(1)
-	if err != nil {
-		return -1, fmt.Errorf("%w: Failed to get page boxes", err)
+// PDF boxes (crop, trim,...) should not be larger than the mediabox.
+func intersectBox(bx map[string]float64, mediabox map[string]float64) map[string]float64 {
+	newbox := make(map[string]float64)
+	for k, v := range bx {
+		newbox[k] = v
 	}
 
-	// If requested box name does not exist for this page, use an alternate box
-	if _, ok := pageBoxes[boxName]; !ok {
-		if boxName == "/BleedBox" || boxName == "/TrimBox" || boxName == "ArtBox" {
-			boxName = "/CropBox"
-		} else if boxName == "/CropBox" {
-			boxName = "/MediaBox"
+	if bx["lly"] < mediabox["lly"] {
+		newbox["lly"] = mediabox["lly"]
+	}
+	if bx["llx"] < mediabox["llx"] {
+		newbox["llx"] = mediabox["llx"]
+	}
+	if bx["ury"] > mediabox["ury"] {
+		newbox["ury"] = mediabox["ury"]
+	}
+	if bx["urx"] > mediabox["urx"] {
+		newbox["urx"] = mediabox["urx"]
+	}
+	newbox["x"] = newbox["llx"]
+	newbox["y"] = newbox["lly"]
+	newbox["w"] = newbox["urx"] - newbox["llx"]
+	newbox["h"] = newbox["ury"] - newbox["lly"]
+	return newbox
+}
+
+// GetPDFBoxDimensions returns the dimensions for the given box. Box must be one
+// of "/MediaBox", "/CropBox", "/BleedBox", "/TrimBox", "/ArtBox".
+func (pw *PdfWriter) GetPDFBoxDimensions(p int, boxname string) (map[string]float64, error) {
+	numPages, err := pw.r.GetNumPages()
+	if err != nil {
+		return nil, err
+	}
+	if p > numPages {
+		return nil, fmt.Errorf("cannot get the page number %d of the PDF, the PDF has only %d page(s)", p, numPages)
+	}
+	pb, err := pw.r.GetAllPageBoxes(1.0)
+	if err != nil {
+		return nil, err
+	}
+	bx := pb[p][boxname]
+	if len(bx) == 0 {
+		if boxname == "/CropBox" {
+			return pb[p]["/MediaBox"], nil
+		}
+		switch boxname {
+		case "/ArtBox", "/BleedBox", "/TrimBox":
+			return pb[p]["/CropBox"], nil
+		default:
+			// unknown box dimensions
+			return nil, fmt.Errorf("could not find the box dimensions for the image (box %s)", boxname)
 		}
 	}
-
-	// If the requested box name or an alternate box name cannot be found, trigger an error
-	// TODO: Improve error handling
-	if _, ok := pageBoxes[boxName]; !ok {
-		return -1, fmt.Errorf("Box not found: %s", boxName)
+	if boxname == "/MediaBox" {
+		return bx, nil
 	}
+	return intersectBox(bx, pb[p]["/MediaBox"]), nil
+}
 
+// ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. /MediaBox)
+func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
+	pw.r = rd
 	pageResources, err := rd.GetPageResources(pageno)
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get page resources", err)
@@ -120,14 +156,17 @@ func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string
 	if err != nil {
 		return -1, fmt.Errorf("%w: Failed to get content", err)
 	}
+	bx, err := pw.GetPDFBoxDimensions(pageno, boxName)
+	if err != nil {
+		return 0, err
+	}
 
 	// Set template values
 	tpl := &PdfTemplate{}
 	tpl.Reader = rd
 	tpl.Resources = pageResources
 	tpl.Buffer = content
-	tpl.Box = pageBoxes[boxName]
-	tpl.Boxes = pageBoxes
+	tpl.Box = bx
 	tpl.X = 0
 	tpl.Y = 0
 	tpl.W = tpl.Box["w"]
@@ -349,7 +388,6 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 		pw.out("<<" + filter + "/Type /XObject")
 		pw.out("/Subtype /Form")
 		pw.out("/FormType 1")
-
 		pw.out(fmt.Sprintf("/BBox [%.2F %.2F %.2F %.2F]", tpl.Box["llx"], tpl.Box["lly"], (tpl.Box["urx"] + tpl.X), (tpl.Box["ury"] - tpl.Y)))
 
 		var c, s, tx, ty float64
