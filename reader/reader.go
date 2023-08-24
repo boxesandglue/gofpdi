@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"strconv"
@@ -969,9 +968,9 @@ func (pr *PdfReader) readXref() error {
 					}
 					defer z.Close()
 
-					p, err := ioutil.ReadAll(z)
+					p, err := io.ReadAll(z)
 					if err != nil {
-						return fmt.Errorf("%w:ioutil.ReadAll error", err)
+						return fmt.Errorf("%w:io.ReadAll error", err)
 					}
 
 					objPos := 0
