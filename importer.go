@@ -3,7 +3,7 @@ package gofpdi
 import (
 	"io"
 
-	"github.com/speedata/gofpdi/reader"
+	"github.com/boxesandglue/gofpdi/reader"
 )
 
 // The Importer class to be used by a pdf generation library

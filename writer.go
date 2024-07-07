@@ -10,7 +10,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/speedata/gofpdi/reader"
+	"github.com/boxesandglue/gofpdi/reader"
 )
 
 type PdfWriter struct {
