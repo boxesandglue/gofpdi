@@ -146,6 +146,9 @@ func (pw *PdfWriter) GetPDFBoxDimensions(p int, boxname string) (map[string]floa
 
 // ImportPage creates a PdfTemplate object from a page number (e.g. 1) and a boxName (e.g. /MediaBox)
 func (pw *PdfWriter) ImportPage(rd *reader.PdfReader, pageno int, boxName string) (int, error) {
+	if rd == nil {
+		return -1, fmt.Errorf("internal error: reader is nil")
+	}
 	pw.r = rd
 	pageResources, err := rd.GetPageResources(pageno)
 	if err != nil {
@@ -343,6 +346,9 @@ func (pw *PdfWriter) writeValue(value *reader.PdfValue) {
 // PutFormXobjects puts form xobjects and get back a map of template names (e.g.
 // /GOFPDITPL1) and their object ids (int)
 func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfObjectID, error) {
+	if reader == nil {
+		return nil, fmt.Errorf("internal error: reader is nil")
+	}
 	// Set current reader
 	pw.r = reader
 

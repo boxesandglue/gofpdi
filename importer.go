@@ -1,6 +1,7 @@
 package gofpdi
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/boxesandglue/gofpdi/reader"
@@ -51,11 +52,17 @@ func (imp *Importer) SetSourceStream(rs io.ReadSeeker) error {
 
 // GetNumPages returns the number of pages in the PDF document
 func (imp *Importer) GetNumPages() (int, error) {
+	if imp.reader == nil {
+		return 0, fmt.Errorf("internal error: reader is nil")
+	}
 	return imp.reader.GetNumPages()
 }
 
 // GetPageSizes returns the page sizes for all pages
 func (imp *Importer) GetPageSizes() (map[int]map[string]map[string]float64, error) {
+	if imp.reader == nil {
+		return nil, fmt.Errorf("internal error: reader is nil")
+	}
 	return imp.reader.GetAllPageBoxes(1.0)
 }
 
