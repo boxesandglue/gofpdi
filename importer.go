@@ -116,7 +116,7 @@ func (imp *Importer) GetImportedObjects() map[int][]byte {
 	res := make(map[int][]byte, 0)
 	pdfObjIDBytes := imp.writer.GetImportedObjects()
 	for pdfObjID, bytes := range pdfObjIDBytes {
-		res[pdfObjID.id] = bytes
+		res[pdfObjID.ID] = bytes
 	}
 	return res
 }
