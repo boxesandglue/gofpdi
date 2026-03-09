@@ -596,6 +596,9 @@ func (pr *PdfReader) resolveCompressedObject(objSpec *PdfValue) (*PdfValue, erro
 //  3. We preserve and restore the original file position even on errors where possible.
 //  4. We produce clearer, idiomatic error messages with %w wrapping.
 func (pr *PdfReader) ResolveObject(objSpec *PdfValue) (*PdfValue, error) {
+	if objSpec == nil {
+		return nil, fmt.Errorf("cannot resolve nil object reference")
+	}
 	// Fast path: direct object (not a reference) => return as is.
 	if objSpec.Type != PDFTypeObjRef {
 		return objSpec, nil
@@ -1041,9 +1044,12 @@ func (pr *PdfReader) readXref() error {
 							// Regular objects
 							b := make([]byte, 4)
 							copy(b[4-middleFieldSize:], objectData[1:1+middleFieldSize])
-
 							objPos = int(binary.BigEndian.Uint32(b))
-							objGen = int(objectData[firstFieldSize+middleFieldSize])
+
+							// Read generation from last field (may be multi-byte)
+							g := make([]byte, 4)
+							copy(g[4-lastFieldSize:], objectData[1+middleFieldSize:1+middleFieldSize+lastFieldSize])
+							objGen = int(binary.BigEndian.Uint32(g))
 
 							// Append map[int]int
 							pr.xref[i] = make(map[int]int, 1)
@@ -1054,9 +1060,12 @@ func (pr *PdfReader) readXref() error {
 							// Compressed objects
 							b := make([]byte, 4)
 							copy(b[4-middleFieldSize:], objectData[1:1+middleFieldSize])
-
 							objID := int(binary.BigEndian.Uint32(b))
-							objIdx := int(objectData[firstFieldSize+middleFieldSize])
+
+							// Read index from last field (may be multi-byte)
+							g := make([]byte, 4)
+							copy(g[4-lastFieldSize:], objectData[1+middleFieldSize:1+middleFieldSize+lastFieldSize])
+							objIdx := int(binary.BigEndian.Uint32(g))
 
 							// object id (i) is located in StmObj (objId) at index (objIdx)
 							pr.xrefStream[i] = [2]int{objID, objIdx}

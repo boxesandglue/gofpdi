@@ -284,6 +284,25 @@ func TestGetPageRotation_Sample_Pages(t *testing.T) {
 	}
 }
 
+func TestResolveObject_Nil(t *testing.T) {
+	r, err := os.Open("testdata/cow.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	pr, err := NewPdfReaderFromStream(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ResolveObject(nil) must return an error, not panic.
+	_, err = pr.ResolveObject(nil)
+	if err == nil {
+		t.Fatal("ResolveObject(nil) = nil error, want error")
+	}
+}
+
 func TestGetPageRotation_OutOfRange(t *testing.T) {
 	r, err := os.Open("testdata/cow.pdf")
 	if err != nil {
