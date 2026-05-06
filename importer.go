@@ -38,6 +38,27 @@ func (imp *Importer) SetObjIDGetter(f func() int) {
 	imp.writer.NextObjectID = f
 }
 
+// SetTemplateDictEntry stages an extra Form-XObject dictionary entry that
+// will be written into the XObject header at PutFormXobjects time. tplN is
+// the template index returned by ImportPage; key is the entry name without
+// the leading slash; value is the raw PDF token (e.g. an integer like "7"
+// or an indirect reference like "12 0 R").
+//
+// PDF 1.7 §14.7.4.4 / PDF/UA-1 §7.1 Note 1 use a single /StructParent entry
+// to attach the entire XObject content to a structure element via the
+// document's ParentTree. Pass key="StructParent" and value="<int>" for that
+// case. Other PDF features that require dictionary additions (e.g.
+// /Metadata, /OC, /Group) can ride on the same hook.
+func (imp *Importer) SetTemplateDictEntry(tplN int, key, value string) {
+	if imp.writer.ExtraTemplateDict == nil {
+		imp.writer.ExtraTemplateDict = make(map[int]map[string]string)
+	}
+	if imp.writer.ExtraTemplateDict[tplN] == nil {
+		imp.writer.ExtraTemplateDict[tplN] = make(map[string]string)
+	}
+	imp.writer.ExtraTemplateDict[tplN][key] = value
+}
+
 // SetSourceStream sets the importer source by providing a io.ReadSeeker
 func (imp *Importer) SetSourceStream(rs io.ReadSeeker) error {
 	var err error

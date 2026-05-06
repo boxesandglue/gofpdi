@@ -69,6 +69,16 @@ type PdfWriter struct {
 	// NextObjectID, if non‑nil, is called to obtain the next object number. If it
 	// is nil, PdfWriter increments nextObjID internally.
 	NextObjectID func() int
+
+	// ExtraTemplateDict carries additional Form XObject dictionary entries
+	// that should be written into the XObject header. The outer key is the
+	// template index (matching imp.tplN at ImportPage time); the inner map
+	// is key/value pairs added verbatim to the dictionary, e.g.
+	// {"StructParent": "7"} produces "/StructParent 7" inside the XObject.
+	// PDF/UA-1 §7.1 Note 1 uses /StructParent to attach a Form XObject to
+	// the structure tree without an enclosing marked-content sequence on
+	// the parent page; this map is the hook that lets callers do that.
+	ExtraTemplateDict map[int]map[string]string
 }
 
 // PdfObjectKey is a stable, comparable key for maps of written objects. It pairs
@@ -513,6 +523,14 @@ func (pw *PdfWriter) PutFormXobjects(reader *reader.PdfReader) (map[string]*PdfO
 		pw.outLine("/Subtype /Form")
 		pw.outLine("/FormType 1")
 		pw.outLine(fmt.Sprintf("/BBox [%.2F %.2F %.2F %.2F]", tpl.Box["llx"], tpl.Box["lly"], (tpl.Box["urx"] + tpl.X), (tpl.Box["ury"] - tpl.Y)))
+		// Extra dict entries supplied by the host pipeline (e.g.
+		// /StructParent for tagged PDFs). The Template index that the
+		// caller used at ImportPage time is i + tplIDOffset here.
+		if extras, ok := pw.ExtraTemplateDict[i+pw.tplIDOffset]; ok {
+			for k, v := range extras {
+				pw.outLine("/" + k + " " + v)
+			}
+		}
 
 		var c, s, tx, ty float64
 		c = 1
