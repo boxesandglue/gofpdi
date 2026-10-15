@@ -1,6 +1,6 @@
 # gofpdi: Go Free PDF Document Importer
 
-[![Explore in Constellation](https://img.shields.io/badge/Explore%20in-Constellation-blue)](https://constellation.speedata.de)
+[![Explore in Constellation](https://img.shields.io/badge/Explore%20in-Constellation-blue)](https://constellation.speedata.de/#gofpdi)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Reference](https://img.shields.io/badge/go-reference-00ADD8.svg)](https://pkg.go.dev/github.com/boxesandglue/gofpdi)
 [![Go Report Card](https://goreportcard.com/badge/github.com/boxesandglue/gofpdi)](https://goreportcard.com/report/github.com/boxesandglue/gofpdi)
@@ -98,7 +98,7 @@ func main() {
 ## Ecosystem
 
 gofpdi is part of a broader ecosystem of PDF, typesetting and publishing technologies.
-**[Explore the constellation →](https://constellation.speedata.de)**
+**[Explore the constellation →](https://constellation.speedata.de/#gofpdi)**
 
 
 ## License & Credits
