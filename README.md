@@ -6,7 +6,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/boxesandglue/gofpdi)](https://goreportcard.com/report/github.com/boxesandglue/gofpdi)
 
 **gofpdi** lets you import pages from existing PDF files and re-use them as [Form XObjects](https://en.wikipedia.org/wiki/PDF#Content_streams) in your own PDFs.
-This fork is maintained by [boxes and Glue](https://github.com/boxesandglue) and used internally by [baseline-pdf](https://github.com/boxesandglue/baseline-pdf).
+This fork is maintained by [boxes and glue](https://github.com/boxesandglue) and used internally by [baseline-pdf](https://github.com/boxesandglue/baseline-pdf).
 
 ---
 
@@ -105,4 +105,4 @@ gofpdi is part of a broader ecosystem of PDF, typesetting and publishing technol
 
 Licensed under the **MIT License**.
 Original code © [phpdave11/gofpdi](https://github.com/phpdave11/gofpdi) and contributors, based on [FPDI](https://github.com/Setasign/FPDI).
-Fork maintained by **boxes and Glue** for use in **baseline-pdf** and related tools.
+Fork maintained by **boxes and glue** for use in **baseline-pdf** and related tools.
