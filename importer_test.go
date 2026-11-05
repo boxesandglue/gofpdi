@@ -3,6 +3,7 @@ package gofpdi
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	src "github.com/speedata/pdfdisassembler"
@@ -202,4 +203,44 @@ func pad10(n int) string {
 		s = "0" + s
 	}
 	return s
+}
+
+// Every resource dictionary of an imported page lists the DefaultRGB, and a
+// document without one stays as it was. The page resources of the host do not
+// reach into a Form XObject.
+func TestSetDefaultRGB(t *testing.T) {
+	importWith := func(defaultRGB int) string {
+		r, err := os.Open("testdata/sample.pdf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		imp := NewImporter()
+		imp.SetNextObjectID(1)
+		imp.SetDefaultRGB(defaultRGB)
+		if err := imp.SetSourceStream(r); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := imp.ImportPage(1, "/MediaBox"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := imp.PutFormXobjects(); err != nil {
+			t.Fatal(err)
+		}
+		var b strings.Builder
+		for _, data := range imp.GetImportedObjects() {
+			b.Write(data)
+		}
+		return b.String()
+	}
+	if got := importWith(0); strings.Contains(got, "DefaultRGB") {
+		t.Error("DefaultRGB without being asked for")
+	}
+	got := importWith(9999)
+	if !strings.Contains(got, "/DefaultRGB 9999 0 R") {
+		t.Error("no DefaultRGB in the resources")
+	}
+	if n := strings.Count(got, "/Resources"); strings.Count(got, "/DefaultRGB 9999 0 R") < n {
+		t.Errorf("%d resource dictionaries, but %d with DefaultRGB", n, strings.Count(got, "/DefaultRGB 9999 0 R"))
+	}
 }

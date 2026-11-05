@@ -61,6 +61,15 @@ func (imp *Importer) SetNextObjectID(objID int) {
 	imp.writer.SetNextObjectID(objID)
 }
 
+// SetDefaultRGB makes every resource dictionary of the imported objects list
+// the color space object objID as /DefaultRGB, unless the source PDF defines
+// its own. Page resources do not reach into a Form XObject, so a host writing
+// PDF/A or PDF/X needs this to give DeviceRGB in an imported page a device
+// independent meaning. Call it before PutFormXobjects.
+func (imp *Importer) SetDefaultRGB(objID int) {
+	imp.writer.defaultRGB = objID
+}
+
 // SetTemplateDictEntry stages an extra Form XObject dictionary entry written
 // into the XObject header at PutFormXobjects time. tplN is the template index
 // returned by ImportPage; key is the entry name without the leading slash;

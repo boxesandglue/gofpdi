@@ -28,7 +28,12 @@ type PdfWriter struct {
 	// yet copied. Keying on the source Reference deduplicates shared objects
 	// (a font referenced by several pages is copied once).
 	refMap map[src.Reference]int
-	queue  []refJob
+
+	// defaultRGB is the output number of the color space every resource
+	// dictionary gets as /DefaultRGB, 0 for none.
+	defaultRGB int
+
+	queue []refJob
 
 	// Object numbering: NextObjectID, when set, is the host's allocator;
 	// otherwise nextObjID is incremented internally. nextObjID always tracks
@@ -188,10 +193,13 @@ func (pw *PdfWriter) writeFormXObject(tpl *pdfTemplate, body []byte, tplIndex in
 	}
 
 	b.WriteString("/Resources ")
-	if tpl.resources == nil {
+	switch {
+	case tpl.resources != nil:
+		pw.writeResources(tpl.resources)
+	case pw.defaultRGB != 0:
+		fmt.Fprintf(b, "<</ColorSpace <</DefaultRGB %d 0 R>>>>", pw.defaultRGB)
+	default:
 		b.WriteString("<<>>")
-	} else {
-		pw.writeDict(tpl.resources)
 	}
 	b.WriteByte('\n')
 
@@ -281,10 +289,80 @@ func (pw *PdfWriter) writeDict(d *src.Dict) {
 	b := pw.currentObj
 	b.WriteString("<<")
 	for k, v := range d.Iter() {
-		b.WriteString("/" + escapeName(k) + " ")
-		pw.writeObject(v)
+		pw.writeEntry(k, v)
 	}
 	b.WriteString(">>")
+}
+
+// writeEntry serializes one dictionary entry. A resource dictionary can sit in
+// any dictionary or stream, such as a nested Form XObject, a pattern or a
+// Type 3 font, and each of them needs the DefaultRGB.
+func (pw *PdfWriter) writeEntry(key string, value src.Object) {
+	pw.currentObj.WriteString("/" + escapeName(key) + " ")
+	if key == "Resources" {
+		pw.writeResources(value)
+		return
+	}
+	pw.writeObject(value)
+}
+
+// resolveDict returns the dictionary obj is or refers to, or nil.
+func (pw *PdfWriter) resolveDict(obj src.Object) *src.Dict {
+	if ref, ok := obj.(src.Reference); ok {
+		resolved, err := pw.reader.Resolve(ref)
+		if err != nil {
+			pw.setErr(fmt.Errorf("gofpdi: resolve %d %d R: %w", ref.Number, ref.Generation, err))
+			return nil
+		}
+		obj = resolved
+	}
+	d, _ := obj.(*src.Dict)
+	return d
+}
+
+// writeResources serializes a resource dictionary and adds the DefaultRGB, if
+// there is one to add. The dictionary goes inline, as it differs from the
+// source.
+func (pw *PdfWriter) writeResources(obj src.Object) {
+	if pw.defaultRGB == 0 {
+		pw.writeObject(obj)
+		return
+	}
+	d := pw.resolveDict(obj)
+	if d == nil {
+		pw.writeObject(obj)
+		return
+	}
+	b := pw.currentObj
+	b.WriteString("<<")
+	for k, v := range d.Iter() {
+		if k == "ColorSpace" {
+			b.WriteString("/ColorSpace ")
+			pw.writeColorSpaces(v)
+			continue
+		}
+		pw.writeEntry(k, v)
+	}
+	if !d.Has("ColorSpace") {
+		fmt.Fprintf(b, "/ColorSpace <</DefaultRGB %d 0 R>>", pw.defaultRGB)
+	}
+	b.WriteString(">>")
+}
+
+// writeColorSpaces serializes the /ColorSpace resources with the DefaultRGB
+// added. One that the source PDF defines itself stays.
+func (pw *PdfWriter) writeColorSpaces(obj src.Object) {
+	d := pw.resolveDict(obj)
+	if d == nil || d.Has("DefaultRGB") {
+		pw.writeObject(obj)
+		return
+	}
+	b := pw.currentObj
+	b.WriteString("<<")
+	for k, v := range d.Iter() {
+		pw.writeEntry(k, v)
+	}
+	fmt.Fprintf(b, "/DefaultRGB %d 0 R>>", pw.defaultRGB)
 }
 
 // writeStream serializes a stream verbatim: its parameter dictionary (with
@@ -302,8 +380,7 @@ func (pw *PdfWriter) writeStream(s *src.Stream) {
 		if k == "Length" {
 			continue // re-emitted from the actual byte count below
 		}
-		b.WriteString("/" + escapeName(k) + " ")
-		pw.writeObject(v)
+		pw.writeEntry(k, v)
 	}
 	fmt.Fprintf(b, "/Length %d>>\n", len(raw))
 	b.WriteString("stream\n")
